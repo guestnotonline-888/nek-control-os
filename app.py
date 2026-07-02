@@ -1,10 +1,10 @@
-from flask import Flask, render_file, request, send_file
+from flask import Flask, request, send_file
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
 
 app = Flask(__name__)
 
-# 1. LIVE INTERACTIVE CRT TERMINAL (Root Dashboard)
+# 1. LIVE INTERACTIVE RETRO CRT INTERFACE
 @app.route('/')
 def home():
     return '''
@@ -15,7 +15,7 @@ def home():
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
             body {
-                background-color: #020503;
+                background-color: #010402;
                 color: #00ff33;
                 font-family: 'Courier New', monospace;
                 display: flex;
@@ -23,28 +23,28 @@ def home():
                 align-items: center;
                 min-height: 100vh;
                 margin: 0;
-                padding: 12px;
+                padding: 15px;
                 box-sizing: border-box;
             }
             .monitor {
                 width: 100%;
-                max-width: 480px;
-                background-color: #040d06;
-                border: 3px solid #143518;
-                border-radius: 12px;
-                padding: 18px;
-                box-shadow: 0 0 30px rgba(0, 255, 51, 0.15);
+                max-width: 460px;
+                background-color: #030a04;
+                border: 3px solid #0d2b12;
+                border-radius: 10px;
+                padding: 20px;
+                box-shadow: 0 0 25px rgba(0, 255, 51, 0.12);
                 position: relative;
-                overflow: hidden;
             }
+            /* CRT Scanline Effect Overlay */
             .monitor::after {
                 content: " ";
                 display: block;
                 position: absolute;
                 top: 0; left: 0; bottom: 0; right: 0;
-                background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+                background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.2) 50%);
                 background-size: 100% 4px;
-                z-index: 5;
+                z-index: 10;
                 pointer-events: none;
             }
             .header {
@@ -52,292 +52,293 @@ def home():
                 justify-content: space-between;
                 align-items: center;
                 border-bottom: 2px solid #00ff33;
-                padding-bottom: 8px;
-                margin-bottom: 18px;
-                font-size: 12px;
+                padding-bottom: 6px;
+                margin-bottom: 20px;
+                font-size: 11px;
                 font-weight: bold;
             }
             .status-led {
-                width: 12px;
-                height: 12px;
+                width: 11px;
+                height: 11px;
                 background-color: #00ff33;
                 border-radius: 50%;
                 box-shadow: 0 0 8px #00ff33;
-                display: inline-block;
             }
             .title {
-                font-size: 15px;
+                font-size: 14px;
                 font-weight: bold;
-                margin-bottom: 20px;
-                text-shadow: 0 0 4px #00ff33;
+                margin-bottom: 22px;
+                text-shadow: 0 0 3px #00ff33;
             }
-            .gauge-set {
-                margin-bottom: 16px;
+            .gauge-block {
+                margin-bottom: 18px;
             }
-            .gauge-info {
+            .gauge-labels {
                 display: flex;
                 justify-content: space-between;
-                font-size: 13px;
-                margin-bottom: 5px;
+                font-size: 12px;
+                margin-bottom: 6px;
             }
-            .meter-frame {
+            .meter-container {
                 border: 1px solid #00ff33;
-                background: #010402;
-                height: 22px;
+                background: #000000;
+                height: 24px;
+                padding: 2px;
+                box-sizing: border-box;
             }
-            .meter-blocks {
-                background: repeating-linear-gradient(90deg, #00ff33, #00ff33 10px, transparent 10px, transparent 14px);
+            .meter-fill {
+                background: repeating-linear-gradient(90deg, #00ff33, #00ff33 11px, transparent 11px, transparent 14px);
                 height: 100%;
                 width: 50%;
-                transition: width 0.3s ease-in-out;
+                transition: width 0.25s ease-in-out;
             }
             .summary-deck {
                 display: flex;
                 justify-content: space-around;
-                border-top: 1px solid #143518;
-                margin-top: 22px;
-                padding-top: 14px;
+                border-top: 1px solid #0d2b12;
+                margin-top: 25px;
+                padding-top: 15px;
                 text-align: center;
-                font-size: 13px;
+                font-size: 12px;
             }
-            .nav-pill {
+            .nav-bench {
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                margin-top: 18px;
+                margin-top: 20px;
             }
             .btn-nav {
-                background: #0a1c0d;
+                background: #051407;
                 border: 1px solid #00ff33;
                 color: #00ff33;
-                padding: 6px 14px;
+                padding: 6px 12px;
                 cursor: pointer;
                 font-family: inherit;
                 font-weight: bold;
             }
-            .btn-nav:active { background: #00ff33; color: #040d06; }
-            .pill-label {
-                background: #112e16;
-                padding: 6px 15px;
+            .btn-nav:active { background: #00ff33; color: #030a04; }
+            .bench-label {
+                background: #09210d;
+                padding: 6px;
                 flex-grow: 1;
                 text-align: center;
-                margin: 0 8px;
-                font-size: 13px;
+                margin: 0 10px;
+                font-size: 12px;
                 font-weight: bold;
             }
-            .btn-grid {
+            .control-grid {
                 display: grid;
                 grid-template-columns: 1fr 1fr;
-                gap: 10px;
-                margin-top: 15px;
+                gap: 12px;
+                margin-top: 18px;
             }
-            .control-btn {
-                background: #040d06;
+            .action-btn {
+                background: #030a04;
                 border: 1px solid #00ff33;
                 color: #00ff33;
                 padding: 12px;
                 font-family: inherit;
                 cursor: pointer;
-                font-size: 12px;
+                font-size: 11px;
                 font-weight: bold;
             }
-            .control-btn:active { background: #00ff33; color: #040d06; }
+            .action-btn:active { background: #00ff33; color: #030a04; }
         </style>
     </head>
     <body>
 
     <div class="monitor">
         <div class="header">
-            <span>TERMINAL v4.2 // SYS_SYSTEM_STATUS:</span>
-            <span class="status-led" id="ledStatus"></span>
+            <span>TERMINAL v4.2 // SYS_STATUS:</span>
+            <div class="status-led" id="ledAlert"></div>
         </div>
 
         <div class="title" id="panelTitle">> MAIN_DASHBOARD_OVERVIEW</div>
 
-        <div class="gauge-set">
-            <div class="gauge-info"><span>CORE TEMPERATURE:</span><span id="txtTemp">285 K</span></div>
-            <div class="meter-frame"><div class="meter-blocks" id="barTemp" style="width: 25%;"></div></div>
+        <div class="gauge-block">
+            <div class="gauge-labels"><span>CORE TEMPERATURE:</span><span id="valTemp">285 K</span></div>
+            <div class="meter-container"><div class="meter-fill" id="barTemp" style="width: 25%;"></div></div>
         </div>
 
-        <div class="gauge-set">
-            <div class="gauge-info"><span>REACTOR POWER:</span><span id="txtPower">100%</span></div>
-            <div class="meter-frame"><div class="meter-blocks" id="barPower" style="width: 66%;"></div></div>
+        <div class="gauge-block">
+            <div class="gauge-labels"><span>REACTOR POWER:</span><span id="valPower">100%</span></div>
+            <div class="meter-container"><div class="meter-fill" id="barPower" style="width: 66%;"></div></div>
         </div>
 
-        <div class="gauge-set">
-            <div class="gauge-info"><span>PRIMARY PRESSURE:</span><span id="txtPress">15.5 MPa</span></div>
-            <div class="meter-frame"><div class="meter-blocks" id="barPress" style="width: 50%;"></div></div>
+        <div class="gauge-block">
+            <div class="gauge-labels"><span>PRIMARY PRESSURE:</span><span id="valPress">15.5 MPa</span></div>
+            <div class="meter-container"><div class="meter-fill" id="barPress" style="width: 50%;"></div></div>
         </div>
 
         <div class="summary-deck">
             <div>
-                <div style="color: #00aa22; font-size: 11px; margin-bottom: 2px;">Core Temp</div>
+                <div style="color: #00a120; font-size: 11px; margin-bottom: 3px;">Core Temp</div>
                 <span id="deckTemp">285 K</span>
             </div>
             <div>
-                <div style="color: #00aa22; font-size: 11px; margin-bottom: 2px;">Status</div>
+                <div style="color: #00a120; font-size: 11px; margin-bottom: 3px;">Status</div>
                 <span id="deckStatus" style="color: #00ff33;">GREEN</span>
             </div>
         </div>
 
-        <div class="nav-pill">
-            <button class="btn-nav" onclick="changePanel(-1)">&lt;</button>
-            <div class="pill-label" id="panelLabel">Main Dashboard</div>
-            <button class="btn-nav" onclick="changePanel(1)">&gt;</button>
+        <div class="nav-bench">
+            <button class="btn-nav" onclick="slidePanel(-1)">&lt;</button>
+            <div class="bench-label" id="panelLabel">Main Dashboard</div>
+            <button class="btn-nav" onclick="slidePanel(1)">&gt;</button>
         </div>
 
-        <div class="btn-grid">
-            <button class="control-btn" onclick="adjustRods()">Adjust Rods (+ Temp)</button>
-            <button class="control-btn" onclick="throttlePumps()">Throttle Pumps (- Press)</button>
-            <button class="control-btn" onclick="triggerScram()" style="color: #ff3333; border-color: #ff3333;">EMERGENCY SCRAM</button>
-            <button class="control-btn" onclick="resetSystem()">Reset System</button>
+        <div class="control-grid">
+            <button class="action-btn" onclick="addRods()">Adjust Rods (+ Temp)</button>
+            <button class="action-btn" onclick="coolPumps()">Throttle Pumps (- Press)</button>
+            <button class="action-btn" onclick="scram()" style="color: #ff3333; border-color: #ff3333;">EMERGENCY SCRAM</button>
+            <button class="action-btn" onclick="clearSystem()">Reset System</button>
         </div>
     </div>
 
     <script>
-        // System parameter states
-        let temp = 285;
-        let power = 100;
-        let press = 15.5;
-        let activeTab = 0;
+        let currentTemp = 285;
+        let currentPower = 100;
+        let currentPress = 15.5;
+        let activeIndex = 0;
         
-        const tabs = ["Main Dashboard", "Electrical Matrix", "Cooling Auxiliary"];
+        const benches = ["Main Dashboard", "Electrical Matrix", "Cooling Auxiliary"];
 
-        function refreshUI() {
-            // Keep parameters properly bounded
-            if (temp < 100) temp = 100;
-            if (power < 0) power = 0;
-            if (press < 0) press = 0;
+        function updateScreen() {
+            if (currentTemp < 100) currentTemp = 100;
+            if (currentPower < 0) currentPower = 0;
+            if (currentPress < 0) currentPress = 0;
 
-            let status = "GREEN";
-            let color = "#00ff33";
+            let condition = "GREEN";
+            let colorHex = "#00ff33";
 
-            if (temp >= 1000 || press >= 25) {
-                status = "RED";
-                color = "#ff3333";
-            } else if (temp >= 450 || press >= 19) {
-                status = "YELLOW";
-                color = "#ffff33";
+            if (currentTemp >= 1000 || currentPress >= 25) {
+                condition = "RED";
+                colorHex = "#ff3333";
+            } else if (currentTemp >= 450 || currentPress >= 19) {
+                condition = "YELLOW";
+                colorHex = "#ffff33";
             }
 
-            // Text nodes
-            document.getElementById("txtTemp").innerText = temp + " K";
-            document.getElementById("deckTemp").innerText = temp + " K";
-            document.getElementById("txtPower").innerText = power + "%";
-            document.getElementById("txtPress").innerText = press.toFixed(1) + " MPa";
-            document.getElementById("deckStatus").innerText = status;
-            document.getElementById("deckStatus").style.color = color;
+            document.getElementById("valTemp").innerText = currentTemp + " K";
+            document.getElementById("deckTemp").innerText = currentTemp + " K";
+            document.getElementById("valPower").innerText = currentPower + "%";
+            document.getElementById("valPress").innerText = currentPress.toFixed(1) + " MPa";
+            document.getElementById("deckStatus").innerText = condition;
+            document.getElementById("deckStatus").style.color = colorHex;
             
-            // LED alert node
-            document.getElementById("ledStatus").style.backgroundColor = color;
-            document.getElementById("ledStatus").style.boxShadow = "0 0 8px " + color;
+            document.getElementById("ledAlert").style.backgroundColor = colorHex;
+            document.getElementById("ledAlert").style.boxShadow = "0 0 8px " + colorHex;
 
-            // Bar mappings
-            document.getElementById("barTemp").style.width = Math.min(((temp - 100) / 1300) * 100, 100) + "%";
-            document.getElementById("barPower").style.width = Math.min(power, 100) + "%";
-            document.getElementById("barPress").style.width = Math.min((press / 30) * 100, 100) + "%";
+            document.getElementById("barTemp").style.width = Math.min(((currentTemp - 100) / 1300) * 100, 100) + "%";
+            document.getElementById("barPower").style.width = Math.min(currentPower, 100) + "%";
+            document.getElementById("barPress").style.width = Math.min((currentPress / 30) * 100, 100) + "%";
         }
 
-        function changePanel(dir) {
-            activeTab = (activeTab + dir + tabs.length) % tabs.length;
-            document.getElementById("panelLabel").innerText = tabs[activeTab];
-            document.getElementById("panelTitle").innerText = "> " + tabs[activeTab].toUpperCase().replace(" ", "_") + "_OVERVIEW";
+        function slidePanel(offset) {
+            activeIndex = (activeIndex + offset + benches.length) % benches.length;
+            document.getElementById("panelLabel").innerText = benches[activeIndex];
+            document.getElementById("panelTitle").innerText = "> " + benches[activeIndex].toUpperCase().replace(" ", "_") + "_OVERVIEW";
         }
 
-        function adjustRods() {
-            temp += 150;
-            power = Math.min(150, power + 15);
-            press += 2.2;
-            refreshUI();
+        function addRods() {
+            currentTemp += 150;
+            currentPower = Math.min(150, currentPower + 10);
+            currentPress += 2.5;
+            updateScreen();
         }
 
-        function throttlePumps() {
-            press = Math.max(2, press - 3.5);
-            temp = Math.min(1400, temp + 80);
-            refreshUI();
+        function coolPumps() {
+            currentPress = Math.max(1, currentPress - 3.0);
+            currentTemp = Math.min(1500, currentTemp + 75);
+            updateScreen();
         }
 
-        function triggerScram() {
-            power = 0;
-            temp = 120;
-            press = 4.0;
-            refreshUI();
+        function scram() {
+            currentPower = 0;
+            currentTemp = 110;
+            currentPress = 3.5;
+            updateScreen();
         }
 
-        function resetSystem() {
-            temp = 285;
-            power = 100;
-            press = 15.5;
-            refreshUI();
+        function clearSystem() {
+            currentTemp = 285;
+            currentPower = 100;
+            currentPress = 15.5;
+            updateScreen();
         }
 
-        refreshUI();
+        updateScreen();
     </script>
     </body>
     </html>
     '''
 
-# 2. COMPREHENSIVE BOT IMAGE GENERATOR ENDPOINT
-# Merges all parsed URL variations (?temp=X or /api/screen/MAIN/285/...) into the green CRT design
+# 2. DYNAMIC BOT GRAPHICS ENGINE (Generates terminal screens dynamically)
 @app.route('/api/screen', defaults={'state': 'MAIN', 'temp': '285', 'power': '100', 'press': '15.5', 'status': 'green'})
 @app.route('/api/screen/<state>/<temp>/<power>/<press>/<status>.png')
 @app.route('/<state>_<temp>_<power>_<press>_<status>.png')
-def draw_screen(state, temp, power, press, status):
-    # Support both explicit URL paths and query parameters gracefully
-    state_param = request.args.get('state', state).upper()
-    temp_param = request.args.get('temp', temp)
-    power_param = request.args.get('power', power)
-    press_param = request.args.get('press', press)
-    status_param = request.args.get('status', status).upper()
+def generate_render(state, temp, power, press, status):
+    # Safe query parameters extraction fallback
+    s_val = request.args.get('state', state).upper()
+    t_val = request.args.get('temp', temp)
+    p_val = request.args.get('power', power)
+    pr_val = request.args.get('press', press)
+    st_val = request.args.get('status', status).upper()
 
-    # Create solid display base matching terminal color space
-    canvas = Image.new('RGB', (500, 340), color='#040d06')
-    raw = ImageDraw.Draw(canvas)
+    # Generate Image Canvas
+    img = Image.new('RGB', (480, 330), color='#030a04')
+    draw = ImageDraw.Draw(img)
     
-    # Outer Monitor Border lines
-    raw.rectangle([10, 10, 490, 330], outline='#143518', width=3)
-    raw.line([10, 45, 490, 45], fill='#00ff33', width=2)
+    # Render Retro Accents
+    draw.rectangle([10, 10, 470, 320], outline='#0d2b12', width=2)
+    draw.line([10, 42, 470, 42], fill='#00ff33', width=2)
 
     font = ImageFont.load_default()
     
-    # Header Status Layout
-    raw.text((20, 20), f"TERMINAL v4.2 // SYS_STATUS:", fill='#00ff33', font=font)
-    alert_color = (0, 255, 51) if status_param == "GREEN" else ((255, 255, 51) if status_param == "YELLOW" else (255, 51, 51))
-    raw.ellipse([460, 20, 474, 34], fill=alert_color)
+    # Top Status Lights
+    draw.text((20, 18), "TERMINAL v4.2 // SYS_STATUS:", fill='#00ff33', font=font)
+    led_color = (0, 255, 51) if st_val == "GREEN" else ((255, 255, 51) if st_val == "YELLOW" else (255, 51, 51))
+    draw.ellipse([445, 18, 457, 30], fill=led_color)
 
-    # Core Panel System Text
-    raw.text((20, 65), f"> {state_param}_DASHBOARD_OVERVIEW", fill='#00ff33', font=font)
+    # Header Panel Tracker
+    draw.text((20, 60), f"> {s_val}_DASHBOARD_OVERVIEW", fill='#00ff33', font=font)
     
-    # Render Metrics with matching drawn graphic blocks
-    metrics = [
-        ("CORE TEMPERATURE:", f"{temp_param} K", float(temp_param.replace('K','').strip()) / 1500),
-        ("REACTOR POWER:", f"{power_param}%", float(power_param.replace('%','').strip()) / 150),
-        ("PRIMARY PRESSURE:", f"{press_param} MPa", float(press_param.replace('MPa','').strip()) / 30)
+    # Calculations for Core progress block allocations
+    try:
+        t_pct = float(t_val.replace('K','').strip()) / 1500
+        p_pct = float(p_val.replace('%','').strip()) / 100
+        pr_pct = float(pr_val.replace('MPa','').strip()) / 30
+    except:
+        t_pct, p_pct, pr_pct = 0.25, 0.66, 0.50
+
+    elements = [
+        ("CORE TEMPERATURE:", f"{t_val} K", t_pct),
+        ("REACTOR POWER:", f"{p_val}%", p_pct),
+        ("PRIMARY PRESSURE:", f"{pr_val} MPa", pr_pct)
     ]
     
-    y_cursor = 100
-    for label, val_str, pct in metrics:
-        raw.text((20, y_cursor), f"{label} {val_str}", fill='#00ff33', font=font)
-        # Draw background track
-        raw.rectangle([20, y_cursor + 18, 470, y_cursor + 32], outline='#00ff33', fill='#010402')
+    y = 95
+    for text_lbl, value_lbl, percent in elements:
+        draw.text((20, y), f"{text_lbl} {value_lbl}", fill='#00ff33', font=font)
+        draw.rectangle([20, y + 16, 450, y + 30], outline='#00ff33', fill='#000000')
         
-        # Fill chunks incrementally to replicate retro segments
-        fill_width = int(min(max(pct, 0), 1) * 440)
-        for step in range(0, fill_width, 14):
-            if step + 10 <= fill_width:
-                raw.rectangle([21 + step, y_cursor + 20, 21 + step + 10, y_cursor + 30], fill='#00ff33')
-        y_cursor += 55
+        # Build segment blocks
+        px_width = int(min(max(percent, 0), 1) * 426)
+        for block in range(0, px_width, 14):
+            if block + 10 <= px_width:
+                draw.rectangle([22 + block, y + 18, 22 + block + 10, y + 28], fill='#00ff33')
+        y += 55
 
-    # Bottom Footer Card
-    raw.line([10, 280, 490, 280], fill='#143518', width=1)
-    raw.text((30, 298), f"Core Temp: {temp_param} K", fill='#00ff33', font=font)
-    raw.text((320, 298), f"Status: {status_param}", fill=alert_color, font=font)
+    # Bottom Display Card Block
+    draw.line([10, 275, 470, 275], fill='#0d2b12', width=1)
+    draw.text((25, 292), f"Core Temp: {t_val} K", fill='#00ff33', font=font)
+    draw.text((320, 292), f"Status: {st_val}", fill=led_color, font=font)
 
-    img_io = BytesIO()
-    canvas.save(img_io, 'PNG')
-    img_io.seek(0)
-    return send_file(img_io, mimetype='image/png')
+    byte_arr = BytesIO()
+    img.save(byte_arr, 'PNG')
+    byte_arr.seek(0)
+    return send_file(byte_arr, mimetype='image/png')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
-                              
+    
