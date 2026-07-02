@@ -4,7 +4,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 app = Flask(__name__)
 
-# 1. LIVE INTERACTIVE RETRO CRT INTERFACE
+# 1. RETRO CRT WEB INTERFACE WITH REACTIVE DATA BENCHES
 @app.route('/')
 def home():
     return '''
@@ -36,7 +36,6 @@ def home():
                 box-shadow: 0 0 25px rgba(0, 255, 51, 0.12);
                 position: relative;
             }
-            /* CRT Scanline Effect Overlay */
             .monitor::after {
                 content: " ";
                 display: block;
@@ -89,7 +88,6 @@ def home():
             .meter-fill {
                 background: repeating-linear-gradient(90deg, #00ff33, #00ff33 11px, transparent 11px, transparent 14px);
                 height: 100%;
-                width: 50%;
                 transition: width 0.25s ease-in-out;
             }
             .summary-deck {
@@ -111,7 +109,7 @@ def home():
                 background: #051407;
                 border: 1px solid #00ff33;
                 color: #00ff33;
-                padding: 6px 12px;
+                padding: 6px 14px;
                 cursor: pointer;
                 font-family: inherit;
                 font-weight: bold;
@@ -155,20 +153,7 @@ def home():
 
         <div class="title" id="panelTitle">> MAIN_DASHBOARD_OVERVIEW</div>
 
-        <div class="gauge-block">
-            <div class="gauge-labels"><span>CORE TEMPERATURE:</span><span id="valTemp">285 K</span></div>
-            <div class="meter-container"><div class="meter-fill" id="barTemp" style="width: 25%;"></div></div>
-        </div>
-
-        <div class="gauge-block">
-            <div class="gauge-labels"><span>REACTOR POWER:</span><span id="valPower">100%</span></div>
-            <div class="meter-container"><div class="meter-fill" id="barPower" style="width: 66%;"></div></div>
-        </div>
-
-        <div class="gauge-block">
-            <div class="gauge-labels"><span>PRIMARY PRESSURE:</span><span id="valPress">15.5 MPa</span></div>
-            <div class="meter-container"><div class="meter-fill" id="barPress" style="width: 50%;"></div></div>
-        </div>
+        <div id="gaugesContainer"></div>
 
         <div class="summary-deck">
             <div>
@@ -196,142 +181,200 @@ def home():
     </div>
 
     <script>
-        let currentTemp = 285;
-        let currentPower = 100;
-        let currentPress = 15.5;
-        let activeIndex = 0;
+        // Centralized core simulator variables shared across layout pages
+        let state = {
+            temp: 285,
+            power: 100,
+            press: 15.5,
+            battery: 100,
+            turbine: 1500,
+            throttle: 50
+        };
         
-        const benches = ["Main Dashboard", "Electrical Matrix", "Cooling Auxiliary"];
+        let activeIndex = 0;
 
-        function updateScreen() {
-            if (currentTemp < 100) currentTemp = 100;
-            if (currentPower < 0) currentPower = 0;
-            if (currentPress < 0) currentPress = 0;
+        function getPanelStructure() {
+            return {
+                0: {
+                    title: "MAIN_DASHBOARD_OVERVIEW",
+                    label: "Main Dashboard",
+                    metrics: [
+                        { name: "CORE TEMPERATURE", val: state.temp, unit: " K", max: 1500 },
+                        { name: "REACTOR POWER", val: state.power, unit: "%", max: 100 },
+                        { name: "PRIMARY PRESSURE", val: state.press, unit: " MPa", max: 30 }
+                    ]
+                },
+                1: {
+                    title: "ELECTRICAL_MATRIX_OVERVIEW",
+                    label: "Electrical Matrix",
+                    metrics: [
+                        { name: "STORAGE BATTERY", val: state.battery, unit: "%", max: 100 },
+                        { name: "TURBINE SPEED", val: state.turbine, unit: " RPM", max: 10000 }
+                    ]
+                },
+                2: {
+                    title: "COOLING_AUXILIARY_OVERVIEW",
+                    label: "Cooling Auxiliary",
+                    metrics: [
+                        { name: "CORE TEMPERATURE", val: state.temp, unit: " K", max: 1500 },
+                        { name: "STORAGE BATTERY", val: state.battery, unit: "%", max: 100 },
+                        { name: "TURBINE SPEED", val: state.turbine, unit: " RPM", max: 10000 },
+                        { name: "PUMP THROTTLE", val: state.throttle, unit: "%", max: 100 }
+                    ]
+                }
+            };
+        }
 
-            let condition = "GREEN";
-            let colorHex = "#00ff33";
-
-            if (currentTemp >= 1000 || currentPress >= 25) {
-                condition = "RED";
-                colorHex = "#ff3333";
-            } else if (currentTemp >= 450 || currentPress >= 19) {
-                condition = "YELLOW";
-                colorHex = "#ffff33";
-            }
-
-            document.getElementById("valTemp").innerText = currentTemp + " K";
-            document.getElementById("deckTemp").innerText = currentTemp + " K";
-            document.getElementById("valPower").innerText = currentPower + "%";
-            document.getElementById("valPress").innerText = currentPress.toFixed(1) + " MPa";
-            document.getElementById("deckStatus").innerText = condition;
-            document.getElementById("deckStatus").style.color = colorHex;
+        function renderPanel() {
+            const currentPanel = getPanelStructure()[activeIndex];
+            document.getElementById("panelLabel").innerText = currentPanel.label;
+            document.getElementById("panelTitle").innerText = "> " + currentPanel.title;
             
-            document.getElementById("ledAlert").style.backgroundColor = colorHex;
-            document.getElementById("ledAlert").style.boxShadow = "0 0 8px " + colorHex;
-
-            document.getElementById("barTemp").style.width = Math.min(((currentTemp - 100) / 1300) * 100, 100) + "%";
-            document.getElementById("barPower").style.width = Math.min(currentPower, 100) + "%";
-            document.getElementById("barPress").style.width = Math.min((currentPress / 30) * 100, 100) + "%";
+            let htmlStr = "";
+            currentPanel.metrics.forEach(m => {
+                let pct = (m.val / m.max) * 100;
+                pct = Math.min(Math.max(pct, 0), 100);
+                
+                htmlStr += `
+                <div class="gauge-block">
+                    <div class="gauge-labels">
+                        <span>${m.name}:</span>
+                        <span>${m.val.toFixed(m.unit.includes('MPa') ? 1 : 0)}${m.unit}</span>
+                    </div>
+                    <div class="meter-container">
+                        <div class="meter-fill" style="width: ${pct}%;"></div>
+                    </div>
+                </div>
+                `;
+            });
+            document.getElementById("gaugesContainer").innerHTML = htmlStr;
+            
+            // Global Safety Alerts Checks
+            document.getElementById("deckTemp").innerText = Math.round(state.temp) + " K";
+            let alertCondition = "GREEN";
+            let alertColor = "#00ff33";
+            
+            if (state.temp >= 1200 || state.press >= 26) {
+                alertCondition = "RED";
+                alertColor = "#ff3333";
+            } else if (state.temp >= 450 || state.press >= 20) {
+                alertCondition = "YELLOW";
+                alertColor = "#ffff33";
+            }
+            
+            document.getElementById("deckStatus").innerText = alertCondition;
+            document.getElementById("deckStatus").style.color = alertColor;
+            document.getElementById("ledAlert").style.backgroundColor = alertColor;
+            document.getElementById("ledAlert").style.boxShadow = "0 0 8px " + alertColor;
         }
 
         function slidePanel(offset) {
-            activeIndex = (activeIndex + offset + benches.length) % benches.length;
-            document.getElementById("panelLabel").innerText = benches[activeIndex];
-            document.getElementById("panelTitle").innerText = "> " + benches[activeIndex].toUpperCase().replace(" ", "_") + "_OVERVIEW";
+            activeIndex = (activeIndex + offset + 3) % 3;
+            renderPanel();
         }
 
         function addRods() {
-            currentTemp += 150;
-            currentPower = Math.min(150, currentPower + 10);
-            currentPress += 2.5;
-            updateScreen();
+            state.temp = Math.min(1500, state.temp + 150);
+            state.power = Math.min(130, state.power + 10);
+            state.press = Math.min(30, state.press + 2.5);
+            state.turbine = Math.min(10000, state.turbine + 1650);
+            state.battery = Math.max(0, state.battery - 15);
+            renderPanel();
         }
 
         function coolPumps() {
-            currentPress = Math.max(1, currentPress - 3.0);
-            currentTemp = Math.min(1500, currentTemp + 75);
-            updateScreen();
+            state.press = Math.max(1, state.press - 3.5);
+            state.throttle = Math.min(100, state.throttle + 15);
+            state.temp = Math.min(1500, state.temp + 60);
+            state.turbine = Math.min(10000, state.turbine + 400);
+            renderPanel();
         }
 
         function scram() {
-            currentPower = 0;
-            currentTemp = 110;
-            currentPress = 3.5;
-            updateScreen();
+            state.power = 0;
+            state.temp = 110;
+            state.press = 3.2;
+            state.turbine = 0;
+            state.throttle = 100;
+            renderPanel();
         }
 
         function clearSystem() {
-            currentTemp = 285;
-            currentPower = 100;
-            currentPress = 15.5;
-            updateScreen();
+            state.temp = 285;
+            state.power = 100;
+            state.press = 15.5;
+            state.battery = 100;
+            state.turbine = 1500;
+            state.throttle = 50;
+            renderPanel();
         }
 
-        updateScreen();
+        renderPanel();
     </script>
     </body>
     </html>
     '''
 
-# 2. DYNAMIC BOT GRAPHICS ENGINE (Generates terminal screens dynamically)
+# 2. BOT IMAGING API (Parses all standard path parameters and query strings smoothly)
 @app.route('/api/screen', defaults={'state': 'MAIN', 'temp': '285', 'power': '100', 'press': '15.5', 'status': 'green'})
 @app.route('/api/screen/<state>/<temp>/<power>/<press>/<status>.png')
 @app.route('/<state>_<temp>_<power>_<press>_<status>.png')
 def generate_render(state, temp, power, press, status):
-    # Safe query parameters extraction fallback
     s_val = request.args.get('state', state).upper()
     t_val = request.args.get('temp', temp)
     p_val = request.args.get('power', power)
     pr_val = request.args.get('press', press)
     st_val = request.args.get('status', status).upper()
 
-    # Generate Image Canvas
     img = Image.new('RGB', (480, 330), color='#030a04')
     draw = ImageDraw.Draw(img)
     
-    # Render Retro Accents
     draw.rectangle([10, 10, 470, 320], outline='#0d2b12', width=2)
     draw.line([10, 42, 470, 42], fill='#00ff33', width=2)
 
     font = ImageFont.load_default()
     
-    # Top Status Lights
     draw.text((20, 18), "TERMINAL v4.2 // SYS_STATUS:", fill='#00ff33', font=font)
-    led_color = (0, 255, 51) if st_val == "GREEN" else ((255, 255, 51) if st_val == "YELLOW" else (255, 51, 51))
+    led_color = (0, 255, 51) if st_val in ["GREEN", "OK"] else ((255, 255, 51) if st_val == "YELLOW" else (255, 51, 51))
     draw.ellipse([445, 18, 457, 30], fill=led_color)
 
-    # Header Panel Tracker
     draw.text((20, 60), f"> {s_val}_DASHBOARD_OVERVIEW", fill='#00ff33', font=font)
     
-    # Calculations for Core progress block allocations
-    try:
-        t_pct = float(t_val.replace('K','').strip()) / 1500
-        p_pct = float(p_val.replace('%','').strip()) / 100
-        pr_pct = float(pr_val.replace('MPa','').strip()) / 30
-    except:
-        t_pct, p_pct, pr_pct = 0.25, 0.66, 0.50
-
-    elements = [
-        ("CORE TEMPERATURE:", f"{t_val} K", t_pct),
-        ("REACTOR POWER:", f"{p_val}%", p_pct),
-        ("PRIMARY PRESSURE:", f"{pr_val} MPa", pr_pct)
-    ]
-    
+    # Auto-adjust labels if target is explicitly cooling systems or main systems
+    if "COOLING" in s_val or "ELECTRICAL" in s_val:
+        elements = [
+            ("CORE TEMPERATURE:", f"{t_val} K", 0.3),
+            ("STORAGE BATTERY:", f"{p_val if '%' in p_val else '100%'}", 0.8),
+            ("TURBINE SPEED:", f"{press if 'RPM' in str(press) else '1500 RPM'}", 0.2),
+            ("PUMP THROTTLE:", "50%", 0.5)
+        ]
+    else:
+        try:
+            t_pct = float(t_val.replace('K','').strip()) / 1500
+            p_pct = float(p_val.replace('%','').strip()) / 100
+            pr_pct = float(pr_val.replace('MPa','').strip()) / 30
+        except:
+            t_pct, p_pct, pr_pct = 0.25, 1.0, 0.5
+            
+        elements = [
+            ("CORE TEMPERATURE:", f"{t_val if 'K' in t_val else t_val + ' K'}", t_pct),
+            ("REACTOR POWER:", f"{p_val if '%' in p_val else p_val + '%'}", p_pct),
+            ("PRIMARY PRESSURE:", f"{pr_val if 'MPa' in pr_val else pr_val + ' MPa'}", pr_pct)
+        ]
+        
     y = 95
     for text_lbl, value_lbl, percent in elements:
         draw.text((20, y), f"{text_lbl} {value_lbl}", fill='#00ff33', font=font)
         draw.rectangle([20, y + 16, 450, y + 30], outline='#00ff33', fill='#000000')
         
-        # Build segment blocks
         px_width = int(min(max(percent, 0), 1) * 426)
         for block in range(0, px_width, 14):
             if block + 10 <= px_width:
                 draw.rectangle([22 + block, y + 18, 22 + block + 10, y + 28], fill='#00ff33')
-        y += 55
+        y += 50 if len(elements) == 4 else 55
 
-    # Bottom Display Card Block
     draw.line([10, 275, 470, 275], fill='#0d2b12', width=1)
-    draw.text((25, 292), f"Core Temp: {t_val} K", fill='#00ff33', font=font)
+    draw.text((25, 292), f"Core Temp: {t_val if 'K' in t_val else t_val + ' K'}", fill='#00ff33', font=font)
     draw.text((320, 292), f"Status: {st_val}", fill=led_color, font=font)
 
     byte_arr = BytesIO()
@@ -341,4 +384,4 @@ def generate_render(state, temp, power, press, status):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
-    
+            
